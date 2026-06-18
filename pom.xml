@@ -18,6 +18,7 @@
         <surefire.version>2.19.1</surefire.version>
         <selenium.version>4.1.4</selenium.version>
         <json-simple.version>1.1.1</json-simple.version>
+        <browserstack-java-sdk.version>1.60.2</browserstack-java-sdk.version>
         <config.file>config/sample-local-test.testng.xml</config.file>
     </properties>
 
@@ -35,7 +36,7 @@
         <dependency>
             <groupId>com.browserstack</groupId>
             <artifactId>browserstack-java-sdk</artifactId>
-            <version>LATEST</version>
+            <version>${browserstack-java-sdk.version}</version>
             <scope>compile</scope>
         </dependency>
     </dependencies>
