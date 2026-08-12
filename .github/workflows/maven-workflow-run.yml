@@ -7,11 +7,35 @@ on:
   workflow_dispatch:
     inputs:
       commit_sha:
-        description: 'The full commit id to build'
+        description: 'The full 40-character commit id to build'
         required: true
 
+# Restrict the default GITHUB_TOKEN so a compromised step cannot write to the
+# repo. github-script only needs checks:write to publish the status check.
+permissions:
+  contents: read
+  checks: write
+
 jobs:
+  # Reject anything that is not a full 40-hex commit SHA before it can reach
+  # `actions/checkout` or `mvn`. Prevents ref/expression injection via the
+  # workflow_dispatch input. The value is read from the environment (never
+  # interpolated inline into the shell) so the check itself is injection-safe.
+  validate-input:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Validate commit_sha
+        env:
+          COMMIT_SHA: ${{ github.event.inputs.commit_sha }}
+        run: |
+          if [[ ! "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::commit_sha must be a full 40-character lowercase hex commit SHA"
+            exit 1
+          fi
+
   comment-run:
+    needs: validate-input
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -20,14 +44,12 @@ jobs:
         java: [ '8', '11', '17' ]
         os: [ 'macos-latest', 'windows-latest', 'ubuntu-latest' ]
     name: Java-selenium Repo ${{ matrix.Java }} - ${{ matrix.os }} Sample
-    env:
-      BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
-      BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
         with:
           ref: ${{ github.event.inputs.commit_sha }}
+          persist-credentials: false
       - uses: actions/github-script@98814c53be79b1d30f795b907e553d8679345975
         id: status-check-in-progress
         env:
@@ -48,19 +70,28 @@ jobs:
               console.log('Failed to create check run')
             }
       - name: Set up Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@e9fbacdec3bb3b6036605a3e6f7995d66773a8c6 # v3.14.2
         with:
           distribution: 'temurin'
           java-version: ${{ matrix.java }}
       - name: Run mvn test
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
         run: |
           mvn compile
           mvn test
       - name: Run mvn profile sample-local-test
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
         run: |
           mvn compile
           mvn test -P sample-local-test
       - name: Run mvn profile sample-test
+        env:
+          BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+          BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
         run: |
           mvn compile
           mvn test -P sample-test
